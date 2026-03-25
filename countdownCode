@@ -1,0 +1,181 @@
+#include <LiquidCrystal.h>
+#include <EEPROM.h>
+
+const int rs = 7, en = 6, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+const int stsp = A0;
+const int inc = A1;
+const int dec = A2;
+const int set = A3;
+const int buzz = 9;
+const int relay = 8;
+
+int sec = 0;             // seconds only (0–10)
+unsigned int check_val = 50;
+
+int add_chk = 0;         
+int add_sec = 1;         
+
+bool RUN = true;
+
+void setup()
+{
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Countdown Timer");
+  lcd.setCursor(0, 1);
+  lcd.print("   Seconds Only");
+
+  pinMode(stsp, INPUT_PULLUP);
+  pinMode(inc, INPUT_PULLUP);
+  pinMode(dec, INPUT_PULLUP);
+  pinMode(set, INPUT_PULLUP);
+  pinMode(buzz, OUTPUT);
+  pinMode(relay, OUTPUT);
+
+  digitalWrite(relay, LOW); 
+  digitalWrite(buzz, LOW);
+
+  
+  if (EEPROM.read(add_chk) != check_val)
+  {
+    EEPROM.write(add_chk, check_val);
+    EEPROM.write(add_sec, 5);  
+  }
+
+  sec = EEPROM.read(add_sec);
+  if (sec < 0 || sec > 10) sec = 0;
+
+  delay(1500);
+  INIT();
+}
+
+void loop()
+{
+  // Start button pressed
+  if (digitalRead(stsp) == LOW)
+  {
+    delay(250);
+    RUN = true;
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("   COUNTDOWN");
+    lcd.setCursor(0, 1);
+    lcd.print("----------------");
+
+    while (RUN)
+    {
+      // Hold stop button for 1 second to cancel
+      if (digitalRead(stsp) == LOW)
+      {
+        delay(1000);
+        if (digitalRead(stsp) == LOW)
+        {
+          digitalWrite(relay, LOW); 
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print("  TIMER STOPPED");
+          delay(2000);
+          RUN = false;
+          INIT();
+          break;
+        }
+      }
+
+      // Run relay and countdown
+      digitalWrite(relay, HIGH);
+      delay(1000);
+      sec--;
+
+      // Display updated time
+      lcd.setCursor(0, 0);
+      lcd.print("Time Left:      ");
+
+      lcd.setCursor(4, 1);
+      lcd.print("00:00:");
+      if (sec < 10) lcd.print('0');
+      lcd.print(sec);
+
+      // TIME UP
+      if (sec <= 0)
+      {
+        digitalWrite(relay, LOW);
+
+        for (int i = 0; i < 20; i++)
+        {
+          digitalWrite(buzz, HIGH);
+          delay(100);
+          digitalWrite(buzz, LOW);
+          delay(100);
+        }
+
+        RUN = false;
+        INIT();
+        break;
+      }
+    }
+  }
+
+  // SET SECONDS MODE
+  if (digitalRead(set) == LOW)
+  {
+    delay(300);
+
+    while (true)
+    {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("SET SECONDS:");
+      lcd.setCursor(0, 1);
+      lcd.print(sec);
+      lcd.print(" (0-10)");
+
+      // Increment
+      if (digitalRead(inc) == LOW)
+      {
+        sec++;
+        if (sec > 10) sec = 10;
+        delay(200);
+      }
+
+      // Decrement
+      if (digitalRead(dec) == LOW)
+      {
+        sec--;
+        if (sec < 0) sec = 0;
+        delay(200);
+      }
+
+      // Save + exit
+      if (digitalRead(set) == LOW)
+      {
+        EEPROM.write(add_sec, sec);
+        delay(300);
+        INIT();
+        break;
+      }
+
+      delay(100);
+    }
+  }
+}
+
+void INIT()
+{
+  sec = EEPROM.read(add_sec);
+  if (sec < 0 || sec > 10) sec = 0;
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Start / Set Time");
+
+  lcd.setCursor(4, 1);
+  lcd.print("00:00:");
+  if (sec < 10) lcd.print('0');
+  lcd.print(sec);
+
+  delay(500);
+}
